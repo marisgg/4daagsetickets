@@ -11,22 +11,22 @@ import random
 
 if platform.system().lower() == "windows":
     print("INFO: detected Windows OS.")
-    make_sound = lambda : print('\a')
+    def make_sound(): print('\a')
 elif platform.system().lower() == "linux":
     print("INFO: detected Linux OS. Requires installation of NumPy and sounddevice.")
     import numpy as np
     import sounddevice as sd
 
     def bip(freq, dur, a=0, d=0, s=1, r=0):
-        t=np.arange(0,dur,1/44100)
-        env=np.interp(t, [0, a, (a+d), dur-r, dur], [0, 1, s, s, 0])
-        sound=np.sin(2*np.pi*freq*t)*env
+        t = np.arange(0, dur, 1/44100)
+        env = np.interp(t, [0, a, (a+d), dur-r, dur], [0, 1, s, s, 0])
+        sound = np.sin(2*np.pi*freq*t)*env
         sd.play(sound, samplerate=44100)
 
-    make_sound = lambda : bip(880,0.4, a=0, d=0.24, s=0.28, r=0.09)
+    def make_sound(): bip(880, 0.4, a=0, d=0.24, s=0.28, r=0.09)
 elif platform.system().lower() == "darwin":
     print("INFO: detected MacOS. Sound is untested.")
-    make_sound = lambda : print('\a')
+    def make_sound(): print('\a')
 else:
     raise ValueError("This code doesn't understand the platform.")
 
@@ -43,13 +43,13 @@ URL = f"https://atleta.cc/e/{ID}/resale"
 GRAPHQL_URL = "https://atleta.cc/api/graphql"
 
 graph = {
-    "operationName" : "GetRegistrationsForSale",
-    "variables" : {
+    "operationName": "GetRegistrationsForSale",
+    "variables": {
         "id": f"{ID}",
         "tickets": None,
         "limit": 100
     },
-    "query" : """query GetRegistrationsForSale($id: ID!, $tickets: [String!], $limit: Int!) {
+    "query": """query GetRegistrationsForSale($id: ID!, $tickets: [String!], $limit: Int!) {
   event(id: $id) {
     id
     registrations_for_sale_count
@@ -121,59 +121,66 @@ graph = {
 """
 }
 
-get_headers = lambda : {
-    "Content-Type" : "application/json",
-    "User-agent" : f"{random.randint(0, int(1e6))}"
+
+def get_headers(): return {
+    "Content-Type": "application/json",
+    "User-agent": f"{random.randint(0, int(1e6))}"
 }
+
 
 print("Starting polling..")
 
 while True:
 
-    response = requests.post(GRAPHQL_URL, data=json.dumps(graph), headers=get_headers())
+    response = requests.post(
+        GRAPHQL_URL, data=json.dumps(graph), headers=get_headers())
 
     if response.status_code == 429:
 
-      timetosleep = int(response.headers['X-RateLimit-Remaining'])
+        timetosleep = int(response.headers['X-RateLimit-Remaining'])
 
-      print(datetime.now().strftime("%H:%M:%S"), f"Waiting for {timetosleep} seconds to adhere to server rate limiting.")
+        print(datetime.now().strftime("%H:%M:%S"),
+              f"Waiting for {timetosleep} seconds to adhere to server rate limiting.")
 
-      print("You should enter the Captcha to resume scanning! Opening the webpage..")
+        print("You should enter the Captcha to resume scanning! Opening the webpage..")
 
-      make_sound()
+        make_sound()
 
-      webbrowser.open(URL, new=1, autoraise=True)
+        webbrowser.open(URL, new=1, autoraise=True)
 
-      time.sleep(timetosleep)
+        time.sleep(timetosleep)
 
     elif response.status_code == 200:
 
-      payload = json.loads(response.content.decode('utf-8'))
+        payload = json.loads(response.content.decode('utf-8'))
 
-      event = payload['data']['event']
+        event = payload['data']['event']
 
-      now = datetime.now()
+        now = datetime.now()
 
-      current_time = now.strftime("%H:%M:%S")
+        current_time = now.strftime("%H:%M:%S")
 
-      assert type(event["registrations_for_sale_count"]) == type(event["filtered_registrations_for_sale_count"]) == int
+        assert type(event["registrations_for_sale_count"]) == type(event["filtered_registrations_for_sale_count"]) == int
 
-      if len(event["registrations_for_sale"]) > 0:
-        print(current_time, "Tickets found, checking if they are free..")
-        for tickets in event["registrations_for_sale"]:
-            ticket = tickets['ticket']
-            if ticket['available']:
-                webbrowser.open(ticket['public_url'], new=1, autoraise=True)
-                make_sound()
-                print(current_time, "!!! TICKET FOUND !!!")
-        print(current_time, "No free tickets found. Resuming..")
-      else:
+        if len(event["registrations_for_sale"]) > 0:
+            print(current_time, "Tickets found, checking if they are free..")
+            for tickets in event["registrations_for_sale"]:
+                ticket = tickets['resale']
+                if ticket['available']:
+                    webbrowser.open(ticket['public_url'], new=1, autoraise=True)
+                    make_sound()
+                    print(current_time, "!!! TICKET FOUND !!!")
+                else:
+                    print("Ticket not available (probably reserved).")
+
+            print(current_time, "Resuming..")
+        else:
             print(current_time, "No tickets..")
 
-      time.sleep(15)
-    
+        time.sleep(random.randint(11, 20))
+
     else:
 
-      print(response)
+        print(response)
 
-      raise ValueError("Unknown response!")
+        raise ValueError("Unknown response!")
